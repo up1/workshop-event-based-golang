@@ -2,17 +2,17 @@ package provider1_test
 
 import (
 	"encoding/json"
+	"model"
 	"net/http"
 	"net/http/httptest"
 	"provider1"
-	"provider1/model"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetProducts(t *testing.T) {
-	req, err := http.NewRequest("GET", "/products", nil)
+	req, err := http.NewRequest("GET", "/api/v1/products", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestGetProducts(t *testing.T) {
 }
 
 func TestGetProductByID(t *testing.T) {
-	req, err := http.NewRequest("GET", "/products/1", nil)
+	req, err := http.NewRequest("GET", "/api/v1/products/1", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestGetProductByID(t *testing.T) {
 }
 
 func TestGetProductByIDNotFound(t *testing.T) {
-	req, err := http.NewRequest("GET", "/products/999", nil)
+	req, err := http.NewRequest("GET", "/api/v1/products/999", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

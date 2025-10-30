@@ -1,6 +1,8 @@
 package repository
 
-import "model"
+import (
+	"model"
+)
 
 // ProductRepository is an in-memory db representation of our set of products
 type ProductRepository struct {

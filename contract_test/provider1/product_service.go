@@ -2,12 +2,12 @@ package provider1
 
 import (
 	"encoding/json"
+	"fmt"
 	"model"
 	"net/http"
 	"provider1/repository"
 	"strconv"
-
-	"github.com/gorilla/mux"
+	"strings"
 )
 
 // productRepository is a mock in-memory representation of our product repository
@@ -57,8 +57,10 @@ func GetProduct(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	// Get product ID from mux vars
-	vars := mux.Vars(r)
-	id, _ := strconv.Atoi(vars["id"])
+	a := strings.Split(r.URL.Path, "/")
+	id, _ := strconv.Atoi(a[len(a)-1])
+
+	fmt.Println("Looking for product ID:", id)
 
 	product, err := productRepository.ByID(id)
 	if err != nil {
