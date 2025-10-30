@@ -97,7 +97,7 @@ func initWatermill() (message.Publisher, error) {
 
 	amqpConfig := amqp.NewDurableQueueConfig("amqp://guest:guest@rabbitmq:5672/")
 
-	publisher, err := amqp.NewPublisher(amqpConfig, watermill.NewStdLogger(false, false))
+	publisher, err := amqp.NewPublisher(amqpConfig, watermill.NewSlogLogger(logger))
 	if err != nil {
 		logger.Error("Failed to create Watermill publisher", "error", err, "rabbitmq_url", "amqp://guest:guest@rabbitmq:5672/")
 		return nil, err

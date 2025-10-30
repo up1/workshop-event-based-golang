@@ -83,13 +83,17 @@ func initTracer() (*sdktrace.TracerProvider, error) {
 }
 
 func initWatermill() (message.Subscriber, error) {
+	logger := initLogger()
+	logger.Info("Initializing Watermill subscriber", "rabbitmq_url", "amqp://guest:guest@rabbitmq:5672/")
 	amqpConfig := amqp.NewDurableQueueConfig("amqp://guest:guest@rabbitmq:5672/")
 
-	subscriber, err := amqp.NewSubscriber(amqpConfig, watermill.NewStdLogger(false, false))
+	subscriber, err := amqp.NewSubscriber(amqpConfig, watermill.NewSlogLogger(logger))
 	if err != nil {
+		logger.Error("Failed to create Watermill subscriber", "error", err, "rabbitmq_url", "amqp://guest:guest@rabbitmq:5672/")
 		return nil, err
 	}
 
+	logger.Info("Watermill subscriber created successfully")
 	return subscriber, nil
 }
 
