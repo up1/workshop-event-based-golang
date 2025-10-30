@@ -2,8 +2,8 @@ package provider1
 
 import (
 	"encoding/json"
+	"model"
 	"net/http"
-	"provider1/model"
 	"provider1/repository"
 	"strconv"
 
