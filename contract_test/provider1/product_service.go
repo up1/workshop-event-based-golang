@@ -10,8 +10,16 @@ import (
 	"strings"
 )
 
+func GetHTTPHandler() *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/product/", GetProduct)
+	mux.HandleFunc("/products/", GetProducts)
+
+	return mux
+}
+
 // productRepository is a mock in-memory representation of our product repository
-var productRepository = &repository.ProductRepository{
+var GproductRepository = &repository.ProductRepository{
 	Products: map[string]*model.Product{
 		"product1": {
 			ProductName: "Product 1",
@@ -37,7 +45,7 @@ var productRepository = &repository.ProductRepository{
 // @Success 200 {array} model.Product
 // @Router /products [get]
 func GetProducts(w http.ResponseWriter, r *http.Request) {
-	products := productRepository.GetProducts()
+	products := GproductRepository.GetProducts()
 	w.Header().Set("Content-Type", "application/json")
 	resBody, _ := json.Marshal(products)
 	w.Write(resBody)
@@ -62,7 +70,7 @@ func GetProduct(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Println("Looking for product ID:", id)
 
-	product, err := productRepository.ByID(id)
+	product, err := GproductRepository.ByID(id)
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Product not found"})
