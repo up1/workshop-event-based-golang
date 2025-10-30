@@ -12,8 +12,8 @@ import (
 
 func GetHTTPHandler() *http.ServeMux {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/product/", GetProduct)
-	mux.HandleFunc("/products/", GetProducts)
+	mux.HandleFunc("/api/v1/products/{id}", GetProduct)
+	mux.HandleFunc("/api/v1/products/", GetProducts)
 
 	return mux
 }

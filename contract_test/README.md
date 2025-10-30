@@ -107,5 +107,9 @@ $export PACT_BROKER_URL=localhost:9292
 $export VERSION_COMMIT=1.0
 $export PACT_BROKER_USERNAME=pact_workshop
 $export PACT_BROKER_PASSWORD=pact_workshop
-$go test product_service_pact_test.go
+
+$go test product_service_pact_test.go -v --count=1
 ```
+
+Check contract status in Pact broker
+* http://localhost:9292/
