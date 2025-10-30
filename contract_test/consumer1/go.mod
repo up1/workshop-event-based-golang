@@ -4,7 +4,6 @@ go 1.25.0
 
 require (
 	github.com/pact-foundation/pact-go/v2 v2.4.1
-	github.com/pact-foundation/pact-workshop-go v0.0.0-20250626002734-580e7f564dff
 	github.com/stretchr/testify v1.11.1
 )
 
@@ -13,6 +12,7 @@ require (
 	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/hashicorp/logutils v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cobra v1.9.1 // indirect

@@ -5,15 +5,14 @@ package consumer1_test
 import (
 	"fmt"
 	"model"
+	"net/url"
 	"os"
 	"strconv"
 	"testing"
 
 	"consumer1"
-	"net/url"
 
 	"github.com/pact-foundation/pact-go/v2/consumer"
-	"github.com/pact-foundation/pact-go/v2/log"
 	"github.com/pact-foundation/pact-go/v2/matchers"
 	"github.com/stretchr/testify/assert"
 )
@@ -39,9 +38,7 @@ var u *url.URL
 var client *consumer1.Client
 
 func TestClientPact_GetUser(t *testing.T) {
-
-	log.SetLogLevel("INFO")
-	mockProvider, err := consumer.NewV2Pact(consumer.MockHTTPProviderConfig{
+	mockProvider, err := consumer.NewV4Pact(consumer.MockHTTPProviderConfig{
 		Consumer: os.Getenv("CONSUMER_NAME"),
 		Provider: os.Getenv("PROVIDER_NAME"),
 		LogDir:   os.Getenv("LOG_DIR"),
@@ -56,8 +53,8 @@ func TestClientPact_GetUser(t *testing.T) {
 			AddInteraction().
 			Given("Product exists").
 			UponReceiving("A request to get product").
-			WithRequestPathMatcher("GET", Regex("/api/v1/product/"+strconv.Itoa(id), "/api/v1/products/[0-9]+")).
-			WillRespondWith(200, func(b *consumer.V2ResponseBuilder) {
+			WithRequestPathMatcher("GET", Regex("/api/v1/products/"+strconv.Itoa(id), "/api/v1/products/[0-9]+")).
+			WillRespondWith(200, func(b *consumer.V4ResponseBuilder) {
 				b.BodyMatch(model.Product{}).
 					Header("Content-Type", Term("application/json", `application\/json`))
 			}).
@@ -94,8 +91,8 @@ func TestClientPact_GetUser(t *testing.T) {
 			AddInteraction().
 			Given("Product does not exist").
 			UponReceiving("A request to get a product that does not exist").
-			WithRequestPathMatcher("GET", Regex("/api/v1/product/"+strconv.Itoa(id), "/api/v1/products/[0-9]+")).
-			WillRespondWith(404, func(b *consumer.V2ResponseBuilder) {
+			WithRequestPathMatcher("GET", Regex("/api/v1/products/"+strconv.Itoa(id), "/api/v1/products/[0-9]+")).
+			WillRespondWith(404, func(b *consumer.V4ResponseBuilder) {
 				b.Header("Content-Type", Term("application/json", `application\/json`))
 			}).
 			ExecuteTest(t, func(config consumer.MockServerConfig) error {
