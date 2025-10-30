@@ -1,0 +1,182 @@
+asyncapi: 3.0.0
+info:
+  title: Order and Report Microservices API
+  version: 1.0.0
+  description: |
+    This API describes the event-driven communication between Order Service and Report Service.
+    The Order Service publishes OrderCreated events to RabbitMQ, which are consumed by the Report Service.
+  contact:
+    name: API Support
+    email: support@example.com
+
+servers:
+  production:
+    host: rabbitmq:5672
+    protocol: amqp
+    description: RabbitMQ message broker
+    security:
+      - $ref: '#/components/securitySchemes/userPassword'
+
+channels:
+  orders:
+    address: orders
+    messages:
+      orderCreated:
+        $ref: '#/components/messages/OrderCreated'
+    description: Exchange for order-related events using fanout pattern
+    bindings:
+      amqp:
+        is: routingKey
+        exchange:
+          name: orders
+          type: fanout
+          durable: true
+          autoDelete: false
+        bindingVersion: 0.3.0
+
+  report:
+    address: report
+    messages:
+      orderCreated:
+        $ref: '#/components/messages/OrderCreated'
+    description: Queue for report service to consume order events
+    bindings:
+      amqp:
+        is: queue
+        queue:
+          name: report
+          durable: true
+          exclusive: false
+          autoDelete: false
+          vhost: /
+        bindingVersion: 0.3.0
+
+operations:
+  publishOrderCreated:
+    action: send
+    channel:
+      $ref: '#/channels/orders'
+    summary: Publish OrderCreated event
+    description: |
+      Service1 (Order Service) publishes this event when a new order is created.
+      The event includes distributed tracing context via OpenTelemetry propagation headers.
+    messages:
+      - $ref: '#/channels/orders/messages/orderCreated'
+    bindings:
+      amqp:
+        deliveryMode: 2
+        bindingVersion: 0.3.0
+
+  subscribeOrderCreated:
+    action: receive
+    channel:
+      $ref: '#/channels/report'
+    summary: Subscribe to OrderCreated events
+    description: |
+      Service2 (Report Service) consumes OrderCreated events from the report queue.
+      The service extracts the tracing context and continues the distributed trace.
+    messages:
+      - $ref: '#/channels/report/messages/orderCreated'
+    bindings:
+      amqp:
+        ack: true
+        bindingVersion: 0.3.0
+
+components:
+  messages:
+    OrderCreated:
+      name: OrderCreated
+      title: Order Created Event
+      summary: Event published when a new order is created
+      contentType: application/json
+      headers:
+        type: object
+        properties:
+          traceparent:
+            type: string
+            description: W3C Trace Context traceparent header for distributed tracing
+            examples:
+              - "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+          tracestate:
+            type: string
+            description: W3C Trace Context tracestate header for vendor-specific trace data
+            examples:
+              - "rojo=00f067aa0ba902b7"
+      payload:
+        $ref: '#/components/schemas/OrderCreatedPayload'
+      examples:
+        - name: basicOrder
+          summary: A simple order creation example
+          headers:
+            traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+            tracestate: "rojo=00f067aa0ba902b7"
+          payload:
+            order_id: "550e8400-e29b-41d4-a716-446655440000"
+            total_price: 1000
+            customer_id: 1
+            product_id: 1
+            created_at: "2025-01-30T10:30:00Z"
+        - name: premiumOrder
+          summary: A higher value order example
+          headers:
+            traceparent: "00-6ba7b8109dad11d180b400c04fd430c8-0123456789abcdef-01"
+          payload:
+            order_id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+            total_price: 2500
+            customer_id: 2
+            product_id: 3
+            created_at: "2025-01-30T14:45:00Z"
+      correlationId:
+        $ref: '#/components/correlationIds/orderCorrelationId'
+
+  schemas:
+    OrderCreatedPayload:
+      type: object
+      description: Payload structure for OrderCreated event
+      required:
+        - order_id
+        - total_price
+        - customer_id
+        - product_id
+        - created_at
+      properties:
+        order_id:
+          type: string
+          format: uuid
+          description: Unique identifier for the order
+          examples:
+            - "550e8400-e29b-41d4-a716-446655440000"
+        total_price:
+          type: integer
+          minimum: 0
+          description: Total price of the order in cents or smallest currency unit
+          examples:
+            - 1000
+        customer_id:
+          type: integer
+          minimum: 1
+          description: Unique identifier for the customer
+          examples:
+            - 1
+        product_id:
+          type: integer
+          minimum: 1
+          description: Unique identifier for the product
+          examples:
+            - 1
+        created_at:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when the order was created
+          examples:
+            - "2025-01-30T10:30:00Z"
+
+  securitySchemes:
+    userPassword:
+      type: userPassword
+      description: RabbitMQ username and password authentication
+
+  correlationIds:
+    orderCorrelationId:
+      description: Correlation ID based on order_id
+      location: $message.payload#/order_id
