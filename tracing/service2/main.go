@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"log/slog"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -45,6 +47,14 @@ type ReportService struct {
 	tracer     trace.Tracer
 	reports    []OrderReport
 	mu         sync.RWMutex
+	logger     *slog.Logger
+}
+
+func initLogger() *slog.Logger {
+	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})
+	return slog.New(handler)
 }
 
 func initTracer() (*sdktrace.TracerProvider, error) {
@@ -91,6 +101,11 @@ func (rs *ReportService) handleOrderCreated(msg *message.Message) error {
 	ctx, span := rs.tracer.Start(ctx, "process_order_created_event")
 	defer span.End()
 
+	rs.logger.InfoContext(ctx, "Processing order created event",
+		slog.String("message_id", msg.UUID),
+		slog.String("event_type", "OrderCreated"),
+	)
+
 	span.SetAttributes(
 		attribute.String("message.id", msg.UUID),
 		attribute.String("event.type", "OrderCreated"),
@@ -99,9 +114,19 @@ func (rs *ReportService) handleOrderCreated(msg *message.Message) error {
 	var event OrderCreatedEvent
 	if err := json.Unmarshal(msg.Payload, &event); err != nil {
 		span.SetAttributes(attribute.String("error", err.Error()))
-		log.Printf("Failed to unmarshal order created event: %v", err)
+		rs.logger.ErrorContext(ctx, "Failed to unmarshal order created event",
+			slog.String("error", err.Error()),
+			slog.String("message_id", msg.UUID),
+		)
 		return err
 	}
+
+	rs.logger.InfoContext(ctx, "Order event unmarshaled successfully",
+		slog.String("order_id", event.OrderID),
+		slog.Int("total_price", event.TotalPrice),
+		slog.Int("customer_id", event.CustomerID),
+		slog.Int("product_id", event.ProductID),
+	)
 
 	span.SetAttributes(
 		attribute.String("order.id", event.OrderID),
@@ -114,7 +139,11 @@ func (rs *ReportService) handleOrderCreated(msg *message.Message) error {
 	createdAt, err := time.Parse(time.RFC3339, event.CreatedAt)
 	if err != nil {
 		span.SetAttributes(attribute.String("parse_error", err.Error()))
-		log.Printf("Failed to parse created_at time: %v", err)
+		rs.logger.WarnContext(ctx, "Failed to parse created_at time, using current time",
+			slog.String("error", err.Error()),
+			slog.String("order_id", event.OrderID),
+			slog.String("created_at_raw", event.CreatedAt),
+		)
 		createdAt = time.Now().UTC()
 	}
 
@@ -131,10 +160,18 @@ func (rs *ReportService) handleOrderCreated(msg *message.Message) error {
 	// Store report (in memory for demo purposes)
 	rs.mu.Lock()
 	rs.reports = append(rs.reports, report)
+	reportCount := len(rs.reports)
 	rs.mu.Unlock()
 
-	log.Printf("Processed order report: OrderID=%s, TotalPrice=%d, CustomerID=%d, ProductID=%d",
-		report.OrderID, report.TotalPrice, report.CustomerID, report.ProductID)
+	rs.logger.InfoContext(ctx, "Order report processed and stored",
+		slog.String("order_id", report.OrderID),
+		slog.Int("total_price", report.TotalPrice),
+		slog.Int("customer_id", report.CustomerID),
+		slog.Int("product_id", report.ProductID),
+		slog.Time("created_at", report.CreatedAt),
+		slog.Time("processed_at", report.ProcessedAt),
+		slog.Int("total_reports", reportCount),
+	)
 
 	// Acknowledge the message
 	msg.Ack()
@@ -145,61 +182,85 @@ func (rs *ReportService) getReports(c *gin.Context) {
 	rs.mu.RLock()
 	reports := make([]OrderReport, len(rs.reports))
 	copy(reports, rs.reports)
+	reportCount := len(reports)
 	rs.mu.RUnlock()
+
+	rs.logger.Info("Reports retrieved",
+		slog.Int("total_reports", reportCount),
+		slog.String("request_id", c.GetHeader("X-Request-ID")),
+	)
 
 	c.JSON(http.StatusOK, gin.H{
 		"reports": reports,
-		"total":   len(reports),
+		"total":   reportCount,
 	})
 }
 
 func (rs *ReportService) startMessageConsumer(ctx context.Context) error {
+	rs.logger.Info("Starting message consumer", slog.String("topic", "orders"))
+
 	messages, err := rs.subscriber.Subscribe(ctx, "orders")
 	if err != nil {
+		rs.logger.Error("Failed to subscribe to orders topic", slog.String("error", err.Error()))
 		return err
 	}
 
 	go func() {
+		rs.logger.Info("Message consumer started, listening for messages")
 		for msg := range messages {
 			if err := rs.handleOrderCreated(msg); err != nil {
-				log.Printf("Failed to handle message: %v", err)
+				rs.logger.Error("Failed to handle message",
+					slog.String("error", err.Error()),
+					slog.String("message_id", msg.UUID),
+				)
 				msg.Nack()
 			}
 		}
+		rs.logger.Warn("Message consumer stopped")
 	}()
 
 	return nil
 }
 
 func main() {
+	// Initialize structured logger
+	logger := initLogger()
+	logger.Info("Starting report service", slog.String("version", "v1.0.0"))
+
 	// Initialize tracing
 	tp, err := initTracer()
 	if err != nil {
+		logger.Error("Failed to initialize tracer", slog.String("error", err.Error()))
 		log.Fatal("Failed to initialize tracer:", err)
 	}
 	defer func() {
 		if err := tp.Shutdown(context.Background()); err != nil {
-			log.Printf("Error shutting down tracer provider: %v", err)
+			logger.Error("Error shutting down tracer provider", slog.String("error", err.Error()))
 		}
 	}()
+	logger.Info("Tracer initialized successfully")
 
 	// Initialize Watermill subscriber
 	subscriber, err := initWatermill()
 	if err != nil {
+		logger.Error("Failed to initialize Watermill", slog.String("error", err.Error()))
 		log.Fatal("Failed to initialize Watermill:", err)
 	}
 	defer subscriber.Close()
+	logger.Info("Watermill subscriber initialized successfully")
 
 	// Initialize service
 	reportService := &ReportService{
 		subscriber: subscriber,
 		tracer:     otel.Tracer("report-service"),
 		reports:    make([]OrderReport, 0),
+		logger:     logger,
 	}
 
 	// Start message consumer
 	ctx := context.Background()
 	if err := reportService.startMessageConsumer(ctx); err != nil {
+		logger.Error("Failed to start message consumer", slog.String("error", err.Error()))
 		log.Fatal("Failed to start message consumer:", err)
 	}
 
@@ -209,14 +270,28 @@ func main() {
 	r.Use(gin.Recovery())
 	r.Use(otelgin.Middleware("report-service"))
 
+	// Add logging middleware
+	r.Use(func(c *gin.Context) {
+		start := time.Now()
+		c.Next()
+		logger.Info("HTTP request completed",
+			slog.String("method", c.Request.Method),
+			slog.String("path", c.Request.URL.Path),
+			slog.Int("status", c.Writer.Status()),
+			slog.Duration("duration", time.Since(start)),
+			slog.String("client_ip", c.ClientIP()),
+		)
+	})
+
 	// Routes
 	r.GET("/reports", reportService.getReports)
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	log.Println("Report service starting on :8081")
+	logger.Info("Report service starting", slog.String("port", ":8081"))
 	if err := r.Run(":8081"); err != nil {
+		logger.Error("Failed to start server", slog.String("error", err.Error()))
 		log.Fatal("Failed to start server:", err)
 	}
 }
