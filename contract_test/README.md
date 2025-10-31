@@ -113,3 +113,24 @@ $go test product_service_pact_test.go -v --count=1
 
 Check contract status in Pact broker
 * http://localhost:9292/
+
+## 7. Mock API server with Standalone Pact Mock Server
+* https://docs.pact.io/implementation_guides/rust/pact_mock_server_cli
+
+Start Mock Server
+```
+$pact_mock_server_cli start
+```
+
+Add contract file
+```
+$pact_mock_server_cli create -f pacts/consumer1-provider1.json
+```
+
+List of providers
+```
+$pact_mock_server_cli list            
+                        
+Mock Server Id                        Port   Provider   Verification State
+fdaea61e-1e69-4dd1-a98c-cd8ce4522e0c  52561  provider1  error
+```
